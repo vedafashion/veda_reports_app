@@ -1,1 +1,29 @@
-
+{
+  "project_info": {
+    "project_number": "70874985873",
+    "project_id": "shop-inventory-3dfae",
+    "storage_bucket": "shop-inventory-3dfae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:70874985873:android:7785455c10f025755b5630",
+        "android_client_info": {
+          "package_name": "com.shop.inventory_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyRz9jNMyknZFa2xnaJBXk3o9aEqDRrCo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
