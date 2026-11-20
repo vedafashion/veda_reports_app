@@ -1,29 +1,32 @@
-{
-  "project_info": {
-    "project_number": "70874985873",
-    "project_id": "shop-inventory-3dfae",
-    "storage_bucket": "shop-inventory-3dfae.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:70874985873:android:7785455c10f025755b5630",
-        "android_client_info": {
-          "package_name": "com.shop.inventory_app"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDyRz9jNMyknZFa2xnaJBXk3o9aEqDRrCo"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    }
-  ],
-  "configuration_version": "1"
-}
+name: Build Owner Reports APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Setup Flutter Project & Firebase
+        run: |
+          flutter create --org com.vedafashion --project-name veda_reports .
+          cp google-services.json android/app/google-services.json
+          flutter pub add firebase_core firebase_auth cloud_firestore pdf printing
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle || true
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' android/app/build.gradle || true
+      - name: Build APK
+        run: flutter build apk --release
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: owner-reports-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
