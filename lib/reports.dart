@@ -87,7 +87,7 @@ class _ReportsDashboardState extends State<ReportsDashboard> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField(
+              DropdownButtonFormField<String>(
                 value: category,
                 decoration: const InputDecoration(
                   labelText: 'Category',
@@ -156,6 +156,154 @@ class _ReportsDashboardState extends State<ReportsDashboard> {
     );
   }
 
+  Widget _chip(String label, String key) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _rangeType == key,
+        onSelected: (_) => setState(() => _rangeType = key),
+      ),
+    );
+  }
+
+  Widget _metricCard(String title, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pnlRow(String label, double amount,
+      {bool bold = false, Color? color}) {
+    final style = TextStyle(
+      fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+      fontSize: bold ? 15 : 14,
+      color: color,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text('₹${amount.toStringAsFixed(2)}', style: style),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopItemsTab(List> items) {
+    if (items.isEmpty) {
+      return const Center(child: Text('No sales recorded in this period.'));
+    }
+    return ListView.separated(
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, i) {
+        final it = items[i];
+        return ListTile(
+          leading: CircleAvatar(child: Text('${i + 1}')),
+          title: Text(it['name'].toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('Sold: ${it['qty']} pcs'),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('Sales: ₹${(it['rev'] as double).toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('Profit: ₹${(it['profit'] as double).toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.green, fontSize: 12)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildExpensesTab(
+      List<QueryDocumentSnapshot>> expenses,
+      double totalExpenses) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Total Period Expenses:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('₹${totalExpenses.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red)),
+            ],
+          ),
+        ),
+        Expanded(
+          child: expenses.isEmpty
+              ? const Center(
+                  child: Text('No expenses logged. Tap + Add Expense.'))
+              : ListView.separated(
+                  itemCount: expenses.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, i) {
+                    final doc = expenses[i];
+                    final d = doc.data();
+                    return ListTile(
+                      title: Text((d['category'] ?? '').toString(),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text((d['note'] ?? '').toString()),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('₹${d['amount'] ?? 0}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red)),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20),
+                            onPressed: () => doc.reference.delete(),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final range = _getActiveRange();
@@ -183,7 +331,7 @@ class _ReportsDashboardState extends State<ReportsDashboard> {
             ),
           ),
           Expanded(
-            child: StreamBuilder(
+            child: StreamBuilder<QuerySnapshot>>(
               stream: FirebaseFirestore.instance
                   .collection('invoices')
                   .where('createdAt',
@@ -193,7 +341,7 @@ class _ReportsDashboardState extends State<ReportsDashboard> {
                   .orderBy('createdAt', descending: true)
                   .snapshots(),
               builder: (context, invSnap) {
-                return StreamBuilder(
+                return StreamBuilder<QuerySnapshot>>(
                   stream: FirebaseFirestore.instance
                       .collection('expenses')
                       .where('createdAt',
@@ -259,9 +407,13 @@ class _ReportsDashboardState extends State<ReportsDashboard> {
                             'profit': 0.0
                           },
                         );
-                        itemStats[name]!['qty'] += qty.toInt();
-                        itemStats[name]!['rev'] += rev;
-                        itemStats[name]!['profit'] += (rev - cost);
+                        itemStats[name]!['qty'] =
+                            (itemStats[name]!['qty'] as int) + qty.toInt();
+                        itemStats[name]!['rev'] =
+                            (itemStats[name]!['rev'] as double) + rev;
+                        itemStats[name]!['profit'] =
+                            (itemStats[name]!['profit'] as double) +
+                                (rev - cost);
                       }
                     }
 
@@ -440,154 +592,6 @@ class _ReportsDashboardState extends State<ReportsDashboard> {
       ),
     );
   }
-
-  Widget _chip(String label, String key) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: _rangeType == key,
-        onSelected: (_) => setState(() => _rangeType = key),
-      ),
-    );
-  }
-
-  Widget _metricCard(String title, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _pnlRow(String label, double amount,
-      {bool bold = false, Color? color}) {
-    final style = TextStyle(
-      fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-      fontSize: bold ? 15 : 14,
-      color: color,
-    );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: style),
-          Text('₹${amount.toStringAsFixed(2)}', style: style),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopItemsTab(List> items) {
-    if (items.isEmpty) {
-      return const Center(child: Text('No sales recorded in this period.'));
-    }
-    return ListView.separated(
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, i) {
-        final it = items[i];
-        return ListTile(
-          leading: CircleAvatar(child: Text('${i + 1}')),
-          title: Text(it['name'],
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text('Sold: ${it['qty']} pcs'),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('Sales: ₹${(it['rev'] as double).toStringAsFixed(0)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text('Profit: ₹${(it['profit'] as double).toStringAsFixed(0)}',
-                  style: const TextStyle(color: Colors.green, fontSize: 12)),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildExpensesTab(
-      List<QueryDocumentSnapshot>> expenses,
-      double totalExpenses) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.red.shade50,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Total Period Expenses:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('₹${totalExpenses.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: expenses.isEmpty
-              ? const Center(
-                  child: Text('No expenses logged. Tap + Add Expense.'))
-              : ListView.separated(
-                  itemCount: expenses.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final doc = expenses[i];
-                    final d = doc.data();
-                    return ListTile(
-                      title: Text((d['category'] ?? '').toString(),
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text((d['note'] ?? '').toString()),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('₹${d['amount']}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red)),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 20),
-                            onPressed: () => doc.reference.delete(),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
 }
 
 class PnlPdfScreen extends StatelessWidget {
@@ -677,7 +681,7 @@ class PnlPdfScreen extends StatelessWidget {
               data: topItems
                   .take(25)
                   .map((it) => [
-                        it['name'],
+                        it['name'].toString(),
                         '${it['qty']}',
                         (it['rev'] as double).toStringAsFixed(2),
                         (it['profit'] as double).toStringAsFixed(2),
